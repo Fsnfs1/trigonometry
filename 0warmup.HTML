@@ -653,38 +653,57 @@
     function saveAndGetLeaderboard() { let board = []; try { board = JSON.parse(localStorage.getItem('trigClassroomBoard')) || []; if (gameMode !== 'practice') { board.push({ name: currentPlayer, score: score }); board.sort((a, b) => b.score - a.score); board = board.slice(0, 5); localStorage.setItem('trigClassroomBoard', JSON.stringify(board)); } } catch (e) { console.warn("Storage restricted"); } return board; }
 
 function endGame() {
-        try { SoundManager.stopBGM(); SoundManager.play('gameover'); } catch(e){} 
-        clearInterval(timerInterval); 
+        try { SoundManager.stopBGM(); SoundManager.play('gameover'); } catch(e){}
+        clearInterval(timerInterval);
         gameState = "GAMEOVER";
         document.getElementById('btn-return').classList.add('hidden');
 
-        // [核心重構]：異步傳輸數據至 Google Forms
         if (gameMode === '30s') {
-            const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdTT_o5H4uOdKvMX0jnSAumlGR_0puvyE6fpbjXuMqjmgKnZA/formResponse";
-            const formData = new URLSearchParams();
-            
-            // 綁定精確的 entry.ID 與遊戲運行時變量
-            formData.append("entry.1887536643", currentPlayer); 
-            formData.append("entry.1677462931", score.toString()); 
+            // [防禦機制 1]：本地數據防丟失緩存 (寫入 localStorage)
+            const timestamp = new Date().toISOString();
+            const record = { player: currentPlayer, score: score, time: timestamp, synced: false };
+            let unsyncedRecords = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
+            unsyncedRecords.push(record);
+            localStorage.setItem('trig_offline_backup', JSON.stringify(unsyncedRecords));
 
-            fetch(formUrl, {
-                method: "POST",
-                mode: "no-cors", // 強制無跨域讀取模式，規避 CORS 攔截報錯
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: formData.toString()
-            }).then(() => {
-                console.log("Payload transmitted to Google Forms successfully.");
-            }).catch((error) => {
-                console.error("Transmission error:", error);
-            });
+            // [防禦機制 2]：隨機延遲提交 (打散並發流量，0 至 3000 毫秒)
+            const jitterDelay = Math.floor(Math.random() * 3000);
+            
+            setTimeout(() => {
+                const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdTT_o5H4uOdKvMX0jnSAumlGR_0puvyE6fpbjXuMqjmgKnZA/formResponse";
+                const formData = new URLSearchParams();
+                formData.append("entry.1887536643", currentPlayer);
+                formData.append("entry.1677462931", score.toString());
+
+                fetch(formUrl, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: formData.toString()
+                }).then(() => {
+                    // 標記為已處理 (因 no-cors 特性，此處僅代表請求已成功發出無網路報錯)
+                    let currentCache = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
+                    const updatedCache = currentCache.map(item => 
+                        (item.time === timestamp && item.player === currentPlayer) ? { ...item, synced: true } : item
+                    );
+                    localStorage.setItem('trig_offline_backup', JSON.stringify(updatedCache));
+                    console.log(`Data transmission initiated after ${jitterDelay}ms delay.`);
+                }).catch((error) => {
+                    // 捕獲物理斷網錯誤，數據依舊安全存放於 localStorage
+                    console.error("Network offline. Data preserved in local cache.", error);
+                });
+            }, jitterDelay);
         }
 
-        // 維持原有的本地排行榜與 UI 渲染邏輯
+        // 維持原有的本地排行榜渲染邏輯
         const board = saveAndGetLeaderboard(); 
         let boardHTML = `<div class="leaderboard-box"><h2 style="color: var(--accent); font-size: clamp(2rem, 4vw, 3rem); margin-top: 0; margin-bottom: 20px; text-shadow: 0 0 20px var(--accent);">🏆 荣誉殿堂 🏆</h2><table class="leaderboard-table"><tr><th>排名</th><th>玩家</th><th>分数</th></tr>`;
-        board.forEach((entry, idx) => { let rank = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : idx + 1)); let highlight = (entry.name === currentPlayer && entry.score === score) ? 'class="current-player-rank"' : ''; boardHTML += `<tr ${highlight} style="animation: slideInRank 0.5s ease forwards; animation-delay: ${idx * 0.15}s; opacity: 0;"><td>${rank}</td><td>${entry.name}</td><td>${entry.score}</td></tr>`; }); boardHTML += `</table></div>`;
+        board.forEach((entry, idx) => { 
+            let rank = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : idx + 1)); 
+            let highlight = (entry.name === currentPlayer && entry.score === score) ? 'class="current-player-rank"' : ''; 
+            boardHTML += `<tr ${highlight} style="animation: slideInRank 0.5s ease forwards; animation-delay: ${idx * 0.15}s; opacity: 0;"><td>${rank}</td><td>${entry.name}</td><td>${entry.score}</td></tr>`; 
+        }); 
+        boardHTML += `</table></div>`;
         
         const endScreen = document.createElement('div'); 
         endScreen.className = "overlay";
