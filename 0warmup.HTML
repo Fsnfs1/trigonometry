@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="三角比建构">
     
-    <title>三角比建构者 - 本地离线版</title>
+    <title>三角比建构者0330</title>
 
     <script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
 
@@ -652,15 +652,46 @@
 
     function saveAndGetLeaderboard() { let board = []; try { board = JSON.parse(localStorage.getItem('trigClassroomBoard')) || []; if (gameMode !== 'practice') { board.push({ name: currentPlayer, score: score }); board.sort((a, b) => b.score - a.score); board = board.slice(0, 5); localStorage.setItem('trigClassroomBoard', JSON.stringify(board)); } } catch (e) { console.warn("Storage restricted"); } return board; }
 
-    function endGame() {
-        try { SoundManager.stopBGM(); SoundManager.play('gameover'); } catch(e){} clearInterval(timerInterval); gameState = "GAMEOVER";
+function endGame() {
+        try { SoundManager.stopBGM(); SoundManager.play('gameover'); } catch(e){} 
+        clearInterval(timerInterval); 
+        gameState = "GAMEOVER";
         document.getElementById('btn-return').classList.add('hidden');
 
-        const board = saveAndGetLeaderboard(); let boardHTML = `<div class="leaderboard-box"><h2 style="color: var(--accent); font-size: clamp(2rem, 4vw, 3rem); margin-top: 0; margin-bottom: 20px; text-shadow: 0 0 20px var(--accent);">🏆 荣誉殿堂 🏆</h2><table class="leaderboard-table"><tr><th>排名</th><th>玩家</th><th>分数</th></tr>`;
+        // [核心重構]：異步傳輸數據至 Google Forms
+        if (gameMode === '30s') {
+            const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdTT_o5H4uOdKvMX0jnSAumlGR_0puvyE6fpbjXuMqjmgKnZA/formResponse";
+            const formData = new URLSearchParams();
+            
+            // 綁定精確的 entry.ID 與遊戲運行時變量
+            formData.append("entry.1887536643", currentPlayer); 
+            formData.append("entry.1677462931", score.toString()); 
+
+            fetch(formUrl, {
+                method: "POST",
+                mode: "no-cors", // 強制無跨域讀取模式，規避 CORS 攔截報錯
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: formData.toString()
+            }).then(() => {
+                console.log("Payload transmitted to Google Forms successfully.");
+            }).catch((error) => {
+                console.error("Transmission error:", error);
+            });
+        }
+
+        // 維持原有的本地排行榜與 UI 渲染邏輯
+        const board = saveAndGetLeaderboard(); 
+        let boardHTML = `<div class="leaderboard-box"><h2 style="color: var(--accent); font-size: clamp(2rem, 4vw, 3rem); margin-top: 0; margin-bottom: 20px; text-shadow: 0 0 20px var(--accent);">🏆 荣誉殿堂 🏆</h2><table class="leaderboard-table"><tr><th>排名</th><th>玩家</th><th>分数</th></tr>`;
         board.forEach((entry, idx) => { let rank = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : idx + 1)); let highlight = (entry.name === currentPlayer && entry.score === score) ? 'class="current-player-rank"' : ''; boardHTML += `<tr ${highlight} style="animation: slideInRank 0.5s ease forwards; animation-delay: ${idx * 0.15}s; opacity: 0;"><td>${rank}</td><td>${entry.name}</td><td>${entry.score}</td></tr>`; }); boardHTML += `</table></div>`;
-        const endScreen = document.createElement('div'); endScreen.className = "overlay";
+        
+        const endScreen = document.createElement('div'); 
+        endScreen.className = "overlay";
         endScreen.innerHTML = `<h1 style="font-size: clamp(3rem, 6vw, 6rem); margin-bottom: 10px; color: #FACC15; text-shadow: 0 0 50px rgba(250,204,21,0.6);">TIME UP!</h1><div style="font-size: clamp(1.5rem, 3vw, 3rem); margin: 10px 0 30px 0;">最终得分：${score}</div>${boardHTML}<button class="mega-btn" onclick="location.reload()" style="margin-top: 20px;">重新挑战</button>`;
-        document.body.appendChild(endScreen); createExplosion(window.innerWidth/2, window.innerHeight/4);
+        
+        document.body.appendChild(endScreen); 
+        createExplosion(window.innerWidth/2, window.innerHeight/4);
     }
 
     function resetSlot(id, text) { const el = document.getElementById(id); el.className = "slot"; el.innerText = text; el.classList.remove("active"); }
