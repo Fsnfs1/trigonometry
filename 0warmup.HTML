@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="三角比建构">
     
-    <title>三角比建构者0330</title>
+    <title>三角比建构者0331</title>
 
     <script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
 
@@ -164,6 +164,10 @@
     <h1 style="font-size: clamp(2rem, 5vw, 4rem); margin-bottom: 0; text-shadow: 0 0 50px var(--glowing-cyan); color: var(--glowing-cyan); text-align: center;">⚔️ 三角比建构者 ⚔️</h1>
     <p style="font-size: clamp(1rem, 2vw, 1.8rem); color: #94A3B8; margin-top: 10px; font-weight: bold; text-align: center;">本地离线版</p>
 
+    <div style="color: var(--accent); font-size: clamp(1rem, 1.5vw, 1.3rem); margin-top: 10px; font-weight: bold; text-align: center; background: rgba(250, 204, 21, 0.15); padding: 8px 15px; border-radius: 8px; border: 2px dashed var(--accent); width: 80%; max-width: 400px;">
+        ⏳ 防沉溺系統：每位同學只有 5 次挑戰機會！
+    </div>
+
     <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
         <select id="class-select" class="player-input" style="width: auto; padding: 10px;" onchange="updateStudentSelect()">
             <option value="">選擇班別</option>
@@ -234,7 +238,6 @@
 <button id="fullscreen-toggle" class="fullscreen-btn hidden" onclick="toggleFullScreen()">退出全屏 ⛶</button>
 
 <script>
-    // 修訂：內置密碼數據
     const credentials = {
         "3B": {
             "1":"357","2":"600","3":"628","4":"722","5":"957","6":"714","7":"815","8":"318","9":"056","10":"055",
@@ -335,11 +338,7 @@
         }
     };
 
-    // ==========================================
-    // 核心重构：动态数学几何引擎 (全面随机化 + 智能辅助线排布)
-    // ==========================================
     function generateMission(isHard) {
-        // 1. 无限随机勾股数引擎
         const triples = [
             [3,4,5], [4,3,5], [5,12,13], [12,5,13], 
             [8,15,17], [15,8,17], [7,24,25], [24,7,25], 
@@ -348,7 +347,6 @@
         const t = triples[Math.floor(Math.random() * triples.length)];
         const opp = t[0], adj = t[1], hyp = t[2];
 
-        // 2. 随机抽取三角函数
         const funcs = [
             { name: '\\sin', num: 'opp', den: 'hyp' },
             { name: '\\cos', num: 'adj', den: 'hyp' },
@@ -356,7 +354,6 @@
         ];
         const func = funcs[Math.floor(Math.random() * funcs.length)];
 
-        // 3. 随机映射顶点字母 (完美实现“辅助线画在不同边上”的视觉轮转)
         const letters = ['A', 'B', 'C'];
         for(let i = letters.length - 1; i > 0; i--){
             const j = Math.floor(Math.random() * (i + 1));
@@ -378,16 +375,12 @@
                 data: { opp: opp.toString(), adj: adj.toString(), hyp: hyp.toString() }
             };
         } else {
-            // 4. 智能生成锐角/钝角三角形体系 (保证求解角永远安全)
             let otherX;
             let absAdj = Math.abs(adj);
             
-            // 为了视觉完美，决定高线到底是落在三角形内部(锐角)还是外部延长线上(钝角)
             if (Math.random() > 0.5 || absAdj <= 3) {
-                // 锐角：另一个端点落在高线的反方向
                 otherX = -dir * (Math.random() * 1.5 + 0.5) * opp;
             } else {
-                // 钝角：另一个端点落在高线的同方向，但比目标角更靠近垂足
                 otherX = dir * (Math.random() * (absAdj - 2) + 1);
             }
 
@@ -395,7 +388,7 @@
                 type: "hard",
                 vis: {
                     top: { pt: [0, opp], name: nameTop },
-                    foot: { pt: [0, 0], name: 'D' }, // 垂足统一命名为D（安全不冲突）
+                    foot: { pt: [0, 0], name: 'D' }, 
                     ref: { pt: [adj * dir, 0], name: nameRef },
                     other: { pt: [otherX, 0], name: nameOther }
                 },
@@ -490,13 +483,28 @@
             return;
         }
 
+        const playerId = `${cls}.${stu}`;
+
+        // 修訂：加入防沉溺系統邏輯（設備計數與鎖定）
+        let playCounts = JSON.parse(localStorage.getItem('trig_play_counts')) || {};
+        let currentCount = playCounts[playerId] || 0;
+
+        if (currentCount >= 5) {
+            alert(`🔒 設備已鎖定：\n${playerId} 同學，你的 5 次挑戰機會已全部用盡，無法再次進入遊戲！`);
+            return;
+        }
+        
+        playCounts[playerId] = currentCount + 1;
+        localStorage.setItem('trig_play_counts', JSON.stringify(playCounts));
+
         try { SoundManager.init(); SoundManager.play('start'); SoundManager.startBGM(); } catch (e) { console.warn("Audio playback issue:", e); }
         gameMode = mode; enterFullScreen(); 
         document.getElementById('fullscreen-toggle').classList.remove('hidden');
         document.getElementById('btn-return').classList.remove('hidden'); 
 
-        currentPlayer = `${cls}.${stu}`;
-        document.getElementById('player-display').innerText = `玩家: ${currentPlayer}${gameMode === 'practice' ? " (练习模式)" : ""}`;
+        currentPlayer = playerId;
+        // 修訂：玩家資訊中同步顯示剩餘機會
+        document.getElementById('player-display').innerText = `玩家: ${currentPlayer}${gameMode === 'practice' ? " (练习模式)" : ""} (剩 ${5 - (currentCount + 1)} 次)`;
         document.getElementById("start-screen").classList.add("hidden"); document.getElementById("main-wrapper").classList.remove("hidden");
         score = 0; combo = 0; wrongCombo = 0; lastCountdownBeepSecond = -1;
         timeLeft = gameMode === '30s' ? 30.0 : 0;
@@ -578,15 +586,11 @@
         if (bestEdge) handleEdgeSelection(bestEdge.id);
     }
 
-    // ==========================================
-    // 核心重构：绝对安全的渲染空间 + 智能自适应
-    // ==========================================
     function drawGeometry() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const data = currentMission.vis;
         const isPortrait = document.getElementById('main-wrapper').classList.contains('portrait');
         
-        // 彻底废弃对幽灵DOM的不稳定读取，采用完全硬编码预留空间
         const topSafeZone = isPortrait ? 110 : 80;  
         const bottomSafeZone = isPortrait ? 80 : 50; 
         const sideSafeZone = Math.max(20, canvas.width * 0.08); 
@@ -598,7 +602,6 @@
         const minX = Math.min(...pts.map(p => p[0])); const maxX = Math.max(...pts.map(p => p[0])); 
         const minY = Math.min(...pts.map(p => p[1])); const maxY = Math.max(...pts.map(p => p[1]));
         
-        // 激进放大倍率，彻底释放图形空间
         const scale = Math.min(drawW / (maxX - minX), drawH / (maxY - minY)) * 0.95;
         
         const toScreen = (pt) => ({ 
@@ -623,7 +626,6 @@
         if (gameState === "SELECTION_PHASE") {
             const refColorRgb = varToRgb("--accent"); ctx.strokeStyle = `rgba(${refColorRgb}, 1)`; ctx.fillStyle = `rgba(${refColorRgb}, 0.2)`; ctx.lineWidth = Math.max(3, canvas.width * 0.006);
             
-            // 智能圆弧计算：不再使用写死的巨大半径，而是根据实际边长自适应，杜绝吞噬边长
             const d1 = Math.hypot(pA.x - pRef.x, pA.y - pRef.y);
             const d2 = Math.hypot(pD.x - pRef.x, pD.y - pRef.y);
             const arcR = Math.max(12, Math.min(35, Math.min(d1, d2) * 0.35)); 
@@ -664,11 +666,9 @@
     }
 
     function updateUI() {
-        // 修訂：確保分數不超過100
         if (score > 100) score = 100;
         document.getElementById("score-display").innerText = score;
         const comboEl = document.getElementById("combo-display"); if(combo > 1) { comboEl.innerText = `x${combo} Combo!`; comboEl.classList.add("show"); } else { comboEl.classList.remove("show"); }
-        // 修訂：將懲罰倍率改為以 1 為基底
         const penaltyEl = document.getElementById("penalty-display"); if(wrongCombo > 0) { let pVal = 1 * Math.pow(2, wrongCombo - 1); penaltyEl.innerText = `连错惩罚: -${pVal}`; penaltyEl.classList.add("show"); penaltyEl.style.color = "var(--danger)"; } else { penaltyEl.classList.remove("show"); }
     }
 
@@ -695,7 +695,6 @@
         if (!numFilled) { if (edgeType === currentMission.steps.num) { targetSlotId = "numerator-slot"; numFilled = true; matched = true; } else if (edgeType === currentMission.steps.den) earlyDenominator = true; } else if (!denFilled) { if (edgeType === currentMission.steps.den) { targetSlotId = "denominator-slot"; denFilled = true; matched = true; } }
         if (matched) {
             try { SoundManager.play('correct', lastPointerClientX); } catch(e){}
-            // 修訂：將每次加分由 100 * combo 修改為 1 * combo
             combo++; wrongCombo = 0; score += 1 * combo; if(score > 100) score = 100; fillSlot(targetSlotId, currentMission.data[edgeType]); flashEdge = { id: edgeType, color: "#10B981", timer: Date.now() + 300 }; drawGeometry();
             const paneRect = document.getElementById("geometry-pane").getBoundingClientRect(); createExplosion(paneRect.width/2, paneRect.height/2); showFloatingText(combo > 3 ? "GODLIKE!" : "NICE!", "#10B981");
             if (numFilled && denFilled) { try { SoundManager.play('success', lastPointerClientX); } catch(e){} gameState = "SUCCESS"; document.getElementById("instruction").innerText = "✨ 建构完成！ ✨"; document.getElementById("geometry-pane").classList.add("main-success"); updateUI(); setTimeout(() => { document.getElementById("geometry-pane").classList.remove("main-success"); if (gameState !== "GAMEOVER") nextMission(); }, 700); } else { updateInstruction(); }
@@ -712,14 +711,12 @@ function endGame() {
         document.getElementById('btn-return').classList.add('hidden');
 
         if (gameMode === '30s') {
-            // [防禦機制 1]：本地數據防丟失緩存 (寫入 localStorage)
             const timestamp = new Date().toISOString();
             const record = { player: currentPlayer, score: score, time: timestamp, synced: false };
             let unsyncedRecords = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
             unsyncedRecords.push(record);
             localStorage.setItem('trig_offline_backup', JSON.stringify(unsyncedRecords));
 
-            // [防禦機制 2]：隨機延遲提交 (打散並發流量，0 至 3000 毫秒)
             const jitterDelay = Math.floor(Math.random() * 3000);
             
             setTimeout(() => {
@@ -734,7 +731,6 @@ function endGame() {
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: formData.toString()
                 }).then(() => {
-                    // 標記為已處理 (因 no-cors 特性，此處僅代表請求已成功發出無網路報錯)
                     let currentCache = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
                     const updatedCache = currentCache.map(item => 
                         (item.time === timestamp && item.player === currentPlayer) ? { ...item, synced: true } : item
@@ -742,13 +738,11 @@ function endGame() {
                     localStorage.setItem('trig_offline_backup', JSON.stringify(updatedCache));
                     console.log(`Data transmission initiated after ${jitterDelay}ms delay.`);
                 }).catch((error) => {
-                    // 捕獲物理斷網錯誤，數據依舊安全存放於 localStorage
                     console.error("Network offline. Data preserved in local cache.", error);
                 });
             }, jitterDelay);
         }
 
-        // 維持原有的本地排行榜渲染邏輯
         const board = saveAndGetLeaderboard(); 
         let boardHTML = `<div class="leaderboard-box"><h2 style="color: var(--accent); font-size: clamp(2rem, 4vw, 3rem); margin-top: 0; margin-bottom: 20px; text-shadow: 0 0 20px var(--accent);">🏆 荣誉殿堂 🏆</h2><table class="leaderboard-table"><tr><th>排名</th><th>玩家</th><th>分数</th></tr>`;
         board.forEach((entry, idx) => { 
