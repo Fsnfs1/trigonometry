@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="三角比建构">
     
-    <title>三角比建构者0331</title>
+    <title>三角比建构者0401</title>
 
     <script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
 
@@ -164,8 +164,8 @@
     <h1 style="font-size: clamp(2rem, 5vw, 4rem); margin-bottom: 0; text-shadow: 0 0 50px var(--glowing-cyan); color: var(--glowing-cyan); text-align: center;">⚔️ 三角比建构者 ⚔️</h1>
     <p style="font-size: clamp(1rem, 2vw, 1.8rem); color: #94A3B8; margin-top: 10px; font-weight: bold; text-align: center;">本地离线版</p>
 
-    <div style="color: var(--accent); font-size: clamp(1rem, 1.5vw, 1.3rem); margin-top: 10px; font-weight: bold; text-align: center; background: rgba(250, 204, 21, 0.15); padding: 8px 15px; border-radius: 8px; border: 2px dashed var(--accent); width: 80%; max-width: 400px;">
-        ⏳ 防沉溺系統：每位同學只有 5 次挑戰機會！
+    <div style="color: var(--accent); font-size: clamp(1rem, 1.5vw, 1.3rem); margin-top: 10px; font-weight: bold; text-align: center; background: rgba(250, 204, 21, 0.15); padding: 8px 15px; border-radius: 8px; border: 2px dashed var(--accent); width: 80%; max-width: 450px;">
+        ⏳ 測驗限制：每位同學僅能挑戰 2 次（僅限30秒模式），結算後自動取最高分發送並鎖定！
     </div>
 
     <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
@@ -238,21 +238,6 @@
 <button id="fullscreen-toggle" class="fullscreen-btn hidden" onclick="toggleFullScreen()">退出全屏 ⛶</button>
 
 <script>
-    const credentials = {
-        "3B": {
-            "1":"357","2":"600","3":"628","4":"722","5":"957","6":"714","7":"815","8":"318","9":"056","10":"055",
-            "11":"150","12":"721","13":"906","14":"539","15":"258","16":"684","17":"827","18":"880","19":"749","20":"603",
-            "21":"534","22":"704","23":"191","24":"504","25":"316","26":"546","27":"045","28":"591","29":"666","30":"609",
-            "31":"362","32":"136"
-        },
-        "3C": {
-            "1":"456","2":"268","3":"607","4":"287","5":"882","6":"398","7":"042","8":"932","9":"989","10":"834",
-            "11":"202","12":"459","13":"298","14":"330","15":"410","16":"454","17":"432","18":"679","19":"680","20":"344",
-            "21":"954","22":"547","23":"564","24":"647","25":"751","26":"858","27":"008","28":"993","29":"888","30":"572",
-            "31":"491","32":"967","33":"890","34":"723"
-        }
-    };
-
     function updateStudentSelect() {
         const cls = document.getElementById('class-select').value;
         const stuSelect = document.getElementById('student-select');
@@ -478,24 +463,46 @@
             alert("請選擇班別和學號！");
             return;
         }
-        if (!credentials[cls] || credentials[cls][stu] !== pwd) {
-            alert("密碼錯誤，請重新輸入！");
+        
+        // 密碼重置：最小修訂，直接全改為 123
+        if (pwd !== "123") {
+            alert("密碼錯誤，請重新輸入！(全部學生的密碼均為 123)");
             return;
         }
 
         const playerId = `${cls}.${stu}`;
 
-        // 修訂：加入防沉溺系統邏輯（設備計數與鎖定）
+        // 修訂：時間條件判斷 (4月1日 限定時段開放)
+        const now = new Date();
+        const isApril1 = (now.getMonth() === 3 && now.getDate() === 1); // getMonth() 3 代表 4月
+        const h = now.getHours();
+        const m = now.getMinutes();
+        const timeVal = h * 60 + m; // 轉成分鐘數方便比對
+
+        let allowedMode = null;
+        if (isApril1) {
+            if (timeVal >= 480 && timeVal < 510) allowedMode = "30s";       // 08:00 ~ 08:30
+            else if (timeVal >= 670 && timeVal < 695) allowedMode = "practice"; // 11:10 ~ 11:35
+            else if (timeVal >= 695 && timeVal <= 705) allowedMode = "30s";     // 11:35 ~ 11:45
+        }
+
+        if (mode !== allowedMode) {
+            alert(`⛔ 目前時間未開放此模式！\n\n📅 4月1日 開放時間表：\n08:00~08:30 ▶️ 30秒模式\n11:10~11:35 ▶️ 練習模式\n11:35~11:45 ▶️ 30秒模式`);
+            return;
+        }
+
+        // 修訂：防沉溺系統邏輯 -> 每位學生僅能挑戰2次 (練習模式不計入)
         let playCounts = JSON.parse(localStorage.getItem('trig_play_counts')) || {};
         let currentCount = playCounts[playerId] || 0;
 
-        if (currentCount >= 5) {
-            alert(`🔒 設備已鎖定：\n${playerId} 同學，你的 5 次挑戰機會已全部用盡，無法再次進入遊戲！`);
-            return;
+        if (mode === '30s') {
+            if (currentCount >= 2) {
+                alert(`🔒 設備已鎖定：\n${playerId} 同學，你的 2 次挑戰機會已全部用盡，系統已發送你的最高成績！無法進行後續操作。`);
+                return;
+            }
+            playCounts[playerId] = currentCount + 1;
+            localStorage.setItem('trig_play_counts', JSON.stringify(playCounts));
         }
-        
-        playCounts[playerId] = currentCount + 1;
-        localStorage.setItem('trig_play_counts', JSON.stringify(playCounts));
 
         try { SoundManager.init(); SoundManager.play('start'); SoundManager.startBGM(); } catch (e) { console.warn("Audio playback issue:", e); }
         gameMode = mode; enterFullScreen(); 
@@ -504,7 +511,12 @@
 
         currentPlayer = playerId;
         // 修訂：玩家資訊中同步顯示剩餘機會
-        document.getElementById('player-display').innerText = `玩家: ${currentPlayer}${gameMode === 'practice' ? " (练习模式)" : ""} (剩 ${5 - (currentCount + 1)} 次)`;
+        if (mode === '30s') {
+            document.getElementById('player-display').innerText = `玩家: ${currentPlayer} (剩 ${2 - (currentCount + 1)} 次)`;
+        } else {
+            document.getElementById('player-display').innerText = `玩家: ${currentPlayer} (练习模式)`;
+        }
+        
         document.getElementById("start-screen").classList.add("hidden"); document.getElementById("main-wrapper").classList.remove("hidden");
         score = 0; combo = 0; wrongCombo = 0; lastCountdownBeepSecond = -1;
         timeLeft = gameMode === '30s' ? 30.0 : 0;
@@ -704,7 +716,7 @@
 
     function saveAndGetLeaderboard() { let board = []; try { board = JSON.parse(localStorage.getItem('trigClassroomBoard')) || []; if (gameMode !== 'practice') { board.push({ name: currentPlayer, score: score }); board.sort((a, b) => b.score - a.score); board = board.slice(0, 5); localStorage.setItem('trigClassroomBoard', JSON.stringify(board)); } } catch (e) { console.warn("Storage restricted"); } return board; }
 
-function endGame() {
+    function endGame() {
         try { SoundManager.stopBGM(); SoundManager.play('gameover'); } catch(e){}
         clearInterval(timerInterval);
         gameState = "GAMEOVER";
@@ -712,35 +724,50 @@ function endGame() {
 
         if (gameMode === '30s') {
             const timestamp = new Date().toISOString();
-            const record = { player: currentPlayer, score: score, time: timestamp, synced: false };
-            let unsyncedRecords = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
-            unsyncedRecords.push(record);
-            localStorage.setItem('trig_offline_backup', JSON.stringify(unsyncedRecords));
-
-            const jitterDelay = Math.floor(Math.random() * 3000);
             
-            setTimeout(() => {
-                const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdTT_o5H4uOdKvMX0jnSAumlGR_0puvyE6fpbjXuMqjmgKnZA/formResponse";
-                const formData = new URLSearchParams();
-                formData.append("entry.1887536643", currentPlayer);
-                formData.append("entry.1677462931", score.toString());
+            // 儲存此次成績到歷史紀錄中
+            let playerHistory = JSON.parse(localStorage.getItem('trig_score_history')) || {};
+            if (!playerHistory[currentPlayer]) playerHistory[currentPlayer] = [];
+            playerHistory[currentPlayer].push(score);
+            localStorage.setItem('trig_score_history', JSON.stringify(playerHistory));
 
-                fetch(formUrl, {
-                    method: "POST",
-                    mode: "no-cors",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: formData.toString()
-                }).then(() => {
-                    let currentCache = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
-                    const updatedCache = currentCache.map(item => 
-                        (item.time === timestamp && item.player === currentPlayer) ? { ...item, synced: true } : item
-                    );
-                    localStorage.setItem('trig_offline_backup', JSON.stringify(updatedCache));
-                    console.log(`Data transmission initiated after ${jitterDelay}ms delay.`);
-                }).catch((error) => {
-                    console.error("Network offline. Data preserved in local cache.", error);
-                });
-            }, jitterDelay);
+            let playCounts = JSON.parse(localStorage.getItem('trig_play_counts')) || {};
+            let count = playCounts[currentPlayer] || 0;
+
+            // 修訂：僅在第 2 次挑戰結束時，抓取最高分上傳至 Google Form
+            if (count >= 2) {
+                const highestScore = Math.max(...playerHistory[currentPlayer]);
+                
+                const record = { player: currentPlayer, score: highestScore, time: timestamp, synced: false };
+                let unsyncedRecords = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
+                unsyncedRecords.push(record);
+                localStorage.setItem('trig_offline_backup', JSON.stringify(unsyncedRecords));
+
+                const jitterDelay = Math.floor(Math.random() * 3000);
+                
+                setTimeout(() => {
+                    const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdTT_o5H4uOdKvMX0jnSAumlGR_0puvyE6fpbjXuMqjmgKnZA/formResponse";
+                    const formData = new URLSearchParams();
+                    formData.append("entry.1887536643", currentPlayer);
+                    formData.append("entry.1677462931", highestScore.toString());
+
+                    fetch(formUrl, {
+                        method: "POST",
+                        mode: "no-cors",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: formData.toString()
+                    }).then(() => {
+                        let currentCache = JSON.parse(localStorage.getItem('trig_offline_backup')) || [];
+                        const updatedCache = currentCache.map(item => 
+                            (item.time === timestamp && item.player === currentPlayer) ? { ...item, synced: true } : item
+                        );
+                        localStorage.setItem('trig_offline_backup', JSON.stringify(updatedCache));
+                        console.log(`Data transmission initiated after ${jitterDelay}ms delay.`);
+                    }).catch((error) => {
+                        console.error("Network offline. Data preserved in local cache.", error);
+                    });
+                }, jitterDelay);
+            }
         }
 
         const board = saveAndGetLeaderboard(); 
