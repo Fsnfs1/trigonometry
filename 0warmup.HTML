@@ -464,7 +464,6 @@
             return;
         }
         
-        // 密碼重置：最小修訂，直接全改為 123
         if (pwd !== "123") {
             alert("密碼錯誤，請重新輸入！(全部學生的密碼均為 123)");
             return;
@@ -472,26 +471,25 @@
 
         const playerId = `${cls}.${stu}`;
 
-        // 修訂：時間條件判斷 (4月1日 限定時段開放)
         const now = new Date();
-        const isApril1 = (now.getMonth() === 3 && now.getDate() === 1); // getMonth() 3 代表 4月
+        const isApril1 = (now.getMonth() === 3 && now.getDate() === 1); 
         const h = now.getHours();
         const m = now.getMinutes();
-        const timeVal = h * 60 + m; // 轉成分鐘數方便比對
+        const timeVal = h * 60 + m; 
 
         let allowedMode = null;
         if (isApril1) {
-            if (timeVal >= 480 && timeVal < 510) allowedMode = "30s";       // 08:00 ~ 08:30
-            else if (timeVal >= 670 && timeVal < 695) allowedMode = "practice"; // 11:10 ~ 11:35
-            else if (timeVal >= 695 && timeVal <= 705) allowedMode = "30s";     // 11:35 ~ 11:45
+            // 第一時段改為 8:30 - 8:45 (510分鐘 - 525分鐘)
+            if (timeVal >= 510 && timeVal < 525) allowedMode = "30s"; 
+            else if (timeVal >= 670 && timeVal < 695) allowedMode = "practice"; 
+            else if (timeVal >= 695 && timeVal <= 705) allowedMode = "30s";     
         }
 
         if (mode !== allowedMode) {
-            alert(`⛔ 目前時間未開放此模式！\n\n📅 4月1日 開放時間表：\n08:00~08:30 ▶️ 30秒模式\n11:10~11:35 ▶️ 練習模式\n11:35~11:45 ▶️ 30秒模式`);
+            alert(`⛔ 目前時間未開放此模式！\n\n📅 4月1日 開放時間表：\n08:30~08:45 ▶️ 30秒模式\n11:10~11:35 ▶️ 練習模式\n11:35~11:45 ▶️ 30秒模式`);
             return;
         }
 
-        // 修訂：防沉溺系統邏輯 -> 每位學生僅能挑戰2次 (練習模式不計入)
         let playCounts = JSON.parse(localStorage.getItem('trig_play_counts')) || {};
         let currentCount = playCounts[playerId] || 0;
 
@@ -510,7 +508,6 @@
         document.getElementById('btn-return').classList.remove('hidden'); 
 
         currentPlayer = playerId;
-        // 修訂：玩家資訊中同步顯示剩餘機會
         if (mode === '30s') {
             document.getElementById('player-display').innerText = `玩家: ${currentPlayer} (剩 ${2 - (currentCount + 1)} 次)`;
         } else {
@@ -725,7 +722,6 @@
         if (gameMode === '30s') {
             const timestamp = new Date().toISOString();
             
-            // 儲存此次成績到歷史紀錄中
             let playerHistory = JSON.parse(localStorage.getItem('trig_score_history')) || {};
             if (!playerHistory[currentPlayer]) playerHistory[currentPlayer] = [];
             playerHistory[currentPlayer].push(score);
@@ -734,7 +730,6 @@
             let playCounts = JSON.parse(localStorage.getItem('trig_play_counts')) || {};
             let count = playCounts[currentPlayer] || 0;
 
-            // 修訂：僅在第 2 次挑戰結束時，抓取最高分上傳至 Google Form
             if (count >= 2) {
                 const highestScore = Math.max(...playerHistory[currentPlayer]);
                 
@@ -790,7 +785,7 @@
     function resetSlot(id, text) { const el = document.getElementById(id); el.className = "slot"; el.innerText = text; el.classList.remove("active"); }
     function activateSlot(id) { document.getElementById(id).classList.add("active"); }
     function fillSlot(id, text) { const el = document.getElementById(id); el.className = "slot filled"; el.innerText = text; el.classList.remove("active");}
-    function updateInstruction() { if(gameState === "DRAWING_PHASE") { document.getElementById("instruction").innerText = "🔥 难度升级：请从发光顶点向下滑动，画出高线"; document.getElementById("instruction").style.color = "#EF4444"; } else { if (!numFilled) { document.getElementById("instruction").innerText = `🎯 第一步：点击图形中的 [${stepNames[currentMission.steps.num]}] 作为分子`; activateSlot("numerator-slot"); document.getElementById("denominator-slot").classList.remove("active"); } else if (!denFilled) { document.getElementById("instruction").innerText = `🎯 第二步：点击图形中的 [${stepNames[currentMission.steps.den]}] 作为分母`; document.getElementById("numerator-slot").classList.remove("active"); activateSlot("denominator-slot"); } document.getElementById("instruction").style.color = "#FACC15"; } }
+    function updateInstruction() { if(gameState === "DRAWING_PHASE") { document.getElementById("instruction").innerText = "🔥 难度升级：请从发光顶点向下滑动，畫出高线"; document.getElementById("instruction").style.color = "#EF4444"; } else { if (!numFilled) { document.getElementById("instruction").innerText = `🎯 第一步：点击图形中的 [${stepNames[currentMission.steps.num]}] 作为分子`; activateSlot("numerator-slot"); document.getElementById("denominator-slot").classList.remove("active"); } else if (!denFilled) { document.getElementById("instruction").innerText = `🎯 第二步：点击图形中的 [${stepNames[currentMission.steps.den]}] 作为分母`; document.getElementById("numerator-slot").classList.remove("active"); activateSlot("denominator-slot"); } document.getElementById("instruction").style.color = "#FACC15"; } }
     function showFloatingText(text, color) { const el = document.createElement('div'); el.className = 'ritual-text'; el.innerText = text; el.style.color = color; el.style.left = '50%'; el.style.top = '40%'; el.style.transform = 'translate(-50%, -50%)'; el.style.animation = 'flyUp 1s ease-out forwards'; document.getElementById('geometry-pane').appendChild(el); setTimeout(() => el.remove(), 1000); }
     function varToRgb(varName) { const hex = getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); if(hex.startsWith('#')) return `${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}`; return "255,255,255"; }
 </script>
