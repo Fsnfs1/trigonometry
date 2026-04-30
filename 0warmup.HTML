@@ -242,6 +242,8 @@
 <script>
     let isDemo = false;
     let demoActionTimer = null;
+    let currentRewardFactor = 0; // 當前獎勵係數
+    let currentPenaltyFactor = 0; // 當前懲罰係數
 
     const SoundManager = {
         ctx: null, _sfxGain: null, _bgmGain: null, _bgmTimer: null, _bgmBeat: 0,
@@ -646,7 +648,7 @@
         
         const pA = toScreen(data.top.pt); const pD = toScreen(data.foot.pt); const pRef = toScreen(data.ref.pt); const pOther = data.other ? toScreen(data.other.pt) : null;
         ctx.renderData = { pA, pD, pRef, scale };
-        
+
         ctx.fillStyle = "rgba(59, 130, 246, 0.04)"; ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(pRef.x, pRef.y); if(pOther) ctx.lineTo(pOther.x, pOther.y); else ctx.lineTo(pD.x, pD.y); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = "rgba(148, 163, 184, 0.9)"; ctx.lineWidth = Math.max(3, canvas.width * 0.01); ctx.lineCap = "round"; ctx.lineJoin = "round";
         ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(pRef.x, pRef.y); if(pOther) ctx.lineTo(pOther.x, pOther.y); else ctx.lineTo(pD.x, pD.y); ctx.closePath(); ctx.stroke();
@@ -679,6 +681,18 @@
             ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.shadowBlur = 0;
             if(Date.now() > flashEdge.timer) { flashEdge = null; drawGeometry(); } else { requestAnimationFrame(drawGeometry); }
         }
+
+        // --- 在這裡插入繪製 R | P 的代碼 (確保在所有 fill/stroke 之後) ---
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0); 
+        ctx.fillStyle = "rgba(250, 204, 21, 0.8)"; 
+        ctx.font = "bold 8px Arial"; 
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 4;
+        ctx.fillText(`R: ${currentRewardFactor} | P: ${currentPenaltyFactor}`, 10, 10);
+        ctx.restore();
     }
 
     function drawRightAngle(ctx, vertex, p1, p2, size) { 
@@ -727,22 +741,16 @@
         try { SoundManager.play('wrong', lastPointerClientX); } catch(e){} 
         wrongCombo++; combo = 0; currentLevel = 1; 
 
+        const penaltyMultipliers = [1, 2, 3, 4];
+        const randomFactor = penaltyMultipliers[Math.floor(Math.random() * penaltyMultipliers.length)];
+        currentPenaltyFactor = randomFactor; // <-- 更新全域變數
 
-// 定義可選的隨機係數
-const randomMultipliers = [0.5, 1, 1.5, 2];
-// 隨機選取其中一個
-const randomFactor2 = randomMultipliers[Math.floor(Math.random() * randomMultipliers.length)];
-
-
-        
-        let basePenalty = randomFactor2 * Math.pow(2, wrongCombo - 1);
+        let basePenalty = randomFactor * Math.pow(2, wrongCombo - 1);
         let penalty = (gameMode === '30s') ? (basePenalty * 0.5) : basePenalty; 
-        
-
 
         score = Math.max(0, score - penalty); 
         updateUI(); 
-        
+
         const geometryPane = document.getElementById("geometry-pane"); 
         geometryPane.classList.add("main-error"); 
         setTimeout(() => geometryPane.classList.remove("main-error"), 400); 
@@ -778,21 +786,14 @@ const randomFactor2 = randomMultipliers[Math.floor(Math.random() * randomMultipl
             try { SoundManager.play('correct', lastPointerClientX); } catch(e){}
             combo++; wrongCombo = 0; 
             
+            const randomMultipliers = [0.5, 1, 1.5, 2];
+            const randomFactor = randomMultipliers[Math.floor(Math.random() * randomMultipliers.length)];
+            currentRewardFactor = randomFactor; // <-- 更新全域變數
 
-// 定義可選的隨機係數
-const randomMultipliers = [0.5, 1, 1.5, 2];
-// 隨機選取其中一個
-const randomFactor = randomMultipliers[Math.floor(Math.random() * randomMultipliers.length)];
-
-// 使用隨機係數計算基礎加分
-let baseInc = randomFactor * combo;
-
-let inc = (gameMode === '30s') ? (baseInc * 1) : baseInc;
-score += inc;
-
-if (gameMode === '30s') score = Math.min(100, score); // 滿分限制為100分
-
-
+            let baseInc = randomFactor * combo;
+            let inc = (gameMode === '30s') ? (baseInc * 1) : baseInc;
+            score += inc;
+            if (gameMode === '30s') score = Math.min(100, score); // 滿分限制為100分
 
             fillSlot(targetSlotId, currentMission.data[edgeType]); flashEdge = { id: edgeType, color: "#10B981", timer: Date.now() + 300 }; drawGeometry();
             const paneRect = document.getElementById("geometry-pane").getBoundingClientRect(); createExplosion(paneRect.width/2, paneRect.height/2); showFloatingText(combo > 3 ? "GODLIKE!" : "NICE!", "#10B981");
