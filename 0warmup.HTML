@@ -726,10 +726,20 @@
     function handlePenalty() { 
         try { SoundManager.play('wrong', lastPointerClientX); } catch(e){} 
         wrongCombo++; combo = 0; currentLevel = 1; 
+
+
+// 定義可選的隨機係數
+const randomMultipliers = [0.5, 1, 1.5, 2];
+// 隨機選取其中一個
+const randomFactor2 = randomMultipliers[Math.floor(Math.random() * randomMultipliers.length)];
+
+
         
-        let basePenalty = 100 * Math.pow(2, wrongCombo - 1);
+        let basePenalty = randomFactor2 * Math.pow(2, wrongCombo - 1);
         let penalty = (gameMode === '30s') ? (basePenalty * 0.5) : basePenalty; 
         
+
+
         score = Math.max(0, score - penalty); 
         updateUI(); 
         
@@ -769,11 +779,19 @@
             combo++; wrongCombo = 0; 
             
 
-            // 全新計分機制：基礎分 x 0.5
-            let baseInc = 0.5 * combo;
-            let inc = (gameMode === '30s') ? (baseInc * 1) : baseInc;
-            score += inc;
-            if (gameMode === '30s') score = Math.min(100, score); // 滿分限制為100分
+// 定義可選的隨機係數
+const randomMultipliers = [0.5, 1, 1.5, 2];
+// 隨機選取其中一個
+const randomFactor = randomMultipliers[Math.floor(Math.random() * randomMultipliers.length)];
+
+// 使用隨機係數計算基礎加分
+let baseInc = randomFactor * combo;
+
+let inc = (gameMode === '30s') ? (baseInc * 1) : baseInc;
+score += inc;
+
+if (gameMode === '30s') score = Math.min(100, score); // 滿分限制為100分
+
 
 
             fillSlot(targetSlotId, currentMission.data[edgeType]); flashEdge = { id: edgeType, color: "#10B981", timer: Date.now() + 300 }; drawGeometry();
