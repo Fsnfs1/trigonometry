@@ -83,9 +83,10 @@
         .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(7, 11, 20, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(10px); }
         .hidden { display: none !important; }
 
-        .player-input { font-size: clamp(1.2rem, 2vw, 1.8rem); padding: 15px 30px; border-radius: 20px; border: 4px solid #475569; background: rgba(15,23,42,0.8); color: var(--light); text-align: center; margin-top: 30px; width: 80%; max-width: 400px; outline: none; }
+        /* 輸入框修改，移除 margin-top，讓 Flexbox 接管排版 */
+        .player-input { font-size: clamp(1rem, 2vw, 1.5rem); padding: 15px 20px; border-radius: 15px; border: 4px solid #475569; background: rgba(15,23,42,0.8); color: var(--light); text-align: center; outline: none; }
         .player-input:focus { border-color: var(--primary); box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
-        .mega-btn { padding: 15px 40px; font-size: clamp(1.5rem, 3vw, 2.2rem); background: var(--primary); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 15px 40px rgba(37, 99, 235, 0.5); transition: all 0.2s; white-space: nowrap; outline: none; margin-top: 20px;}
+        .mega-btn { font-size: clamp(1.2rem, 2.5vw, 1.5rem); background: var(--primary); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4); transition: all 0.2s; white-space: nowrap; outline: none; }
         .mega-btn:hover, .mega-btn:active { transform: scale(1.05) translateY(-2px); background: #1D4ED8; }
 
         .ritual-text { position: absolute; font-size: clamp(3rem, 6vw, 6rem); font-weight: bold; font-style: italic; opacity: 0; z-index: 50; text-shadow: 0 0 30px rgba(0,0,0,0.9); pointer-events: none; }
@@ -115,8 +116,6 @@
     <h1 style="font-size: clamp(2.5rem, 6vw, 5rem); margin-bottom: 0; text-shadow: 0 0 50px var(--glowing-cyan); color: var(--glowing-cyan); text-align: center;">💎 霓虹晶石爭奪戰 💎</h1>
     <p style="font-size: clamp(1.2rem, 2.5vw, 2rem); color: #94A3B8; margin-top: 10px; font-weight: bold; text-align: center;">高級巴什博弈 (Bash Game)</p>
 
-    <input type="text" id="player-name" class="player-input" placeholder="輸入玩家代號..." autocomplete="off" maxlength="12">
-
     <div style="background: rgba(15, 23, 42, 0.8); border: 2px solid var(--accent); border-radius: 15px; padding: 20px; margin-top: 20px; max-width: 600px; width: 85%; text-align: left; color: var(--light);">
         <h3 style="color: var(--accent); margin-top: 0; text-align: center;">📜 遊戲規則</h3>
         <ul style="font-size: clamp(1rem, 2vw, 1.2rem); line-height: 1.6;">
@@ -128,7 +127,11 @@
         </ul>
     </div>
 
-    <button class="mega-btn" ontouchstart="forceUnlockAudio()" onmousedown="forceUnlockAudio()" onclick="startGame()">🚀 接受挑戰</button>
+    <!-- 全新並排輸入區塊，加入 z-index 確保不被遮擋 -->
+    <div style="display: flex; flex-direction: row; justify-content: center; align-items: stretch; gap: 10px; margin-top: 30px; width: 85%; max-width: 500px; position: relative; z-index: 20;">
+        <input type="text" id="player-name" class="player-input" placeholder="輸入玩家代號..." autocomplete="off" maxlength="12" style="flex: 1; width: 0; min-width: 100px;">
+        <button class="mega-btn" ontouchstart="forceUnlockAudio()" onmousedown="forceUnlockAudio()" onclick="startGame()" style="padding: 0 20px; margin: 0;">🚀 挑戰確認</button>
+    </div>
 </div>
 
 <div class="game-wrapper hidden" id="main-wrapper">
@@ -232,8 +235,8 @@
     // ==========================================
     let gameState = "MENU", currentPlayer = "挑戰者";
     let totalItems = 0, maxTake = 0, remainingItems = 0;
-    let currentTurn = ""; // "player" or "ai"
-    let gems = []; // 存儲畫布上的晶石位置
+    let currentTurn = ""; 
+    let gems = []; 
     let ctx, canvas, pCtx, pCanvas, rCtx, rCanvas;
 
     function initSystem() {
@@ -314,9 +317,8 @@
         
         gameState = "PLAYING";
         
-        // 隨機產生巴什博弈參數
-        totalItems = Math.floor(Math.random() * 51) + 250; // 250 ~ 300
-        maxTake = Math.floor(Math.random() * 5) + 5;       // 5 ~ 9
+        totalItems = Math.floor(Math.random() * 51) + 250; 
+        maxTake = Math.floor(Math.random() * 5) + 5;       
         remainingItems = totalItems;
         currentTurn = Math.random() > 0.5 ? "player" : "ai";
 
@@ -363,7 +365,6 @@
             fZone.classList.add("locked");
         }
         
-        // Disable buttons if taking more than remaining
         const btns = document.querySelectorAll(".take-btn");
         btns.forEach((btn, idx) => {
             let takeCount = idx + 1;
@@ -379,11 +380,10 @@
         if(canvas.width === 0) return;
         gems = [];
         const paddingX = canvas.width * 0.1;
-        const paddingY = canvas.height * 0.15 + 80; // 避開頂部標題
+        const paddingY = canvas.height * 0.15 + 80; 
         const drawW = canvas.width - paddingX * 2;
         const drawH = canvas.height - paddingY - (canvas.height * 0.1);
         
-        // 粗略計算行與列以容納 300 顆
         const ratio = drawW / drawH;
         let cols = Math.ceil(Math.sqrt(totalItems * ratio));
         let rows = Math.ceil(totalItems / cols);
@@ -394,7 +394,6 @@
         for (let i = 0; i < totalItems; i++) {
             let c = i % cols;
             let r = Math.floor(i / cols);
-            // 加上一點隨機偏移使其看起來像自然堆疊的礦石
             let offsetX = (Math.random() - 0.5) * spacingX * 0.6;
             let offsetY = (Math.random() - 0.5) * spacingY * 0.6;
             gems.push({
@@ -402,7 +401,7 @@
                 x: paddingX + c * spacingX + spacingX/2 + offsetX,
                 y: paddingY + r * spacingY + spacingY/2 + offsetY,
                 active: true,
-                color: `hsl(${Math.random() * 40 + 180}, 100%, 65%)` // 偏藍青色
+                color: `hsl(${Math.random() * 40 + 180}, 100%, 65%)` 
             });
         }
     }
@@ -410,7 +409,6 @@
     function drawGems() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 找出目前還存活的晶石數量
         let activeGems = gems.filter(g => g.active);
         
         activeGems.forEach(gem => {
@@ -422,7 +420,6 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             
-            // 內部高光
             ctx.beginPath();
             ctx.arc(gem.x - 2, gem.y - 2, 2, 0, Math.PI * 2);
             ctx.fillStyle = "rgba(255,255,255,0.7)";
@@ -434,7 +431,6 @@
         if(count > remainingItems) count = remainingItems;
         remainingItems -= count;
         
-        // 特效：移除陣列最後 count 個 active 的晶石
         let activeGems = gems.filter(g => g.active);
         let removed = 0;
         for(let i = activeGems.length - 1; i >= 0 && removed < count; i--) {
@@ -450,7 +446,7 @@
             try{ SoundManager.play('ai_take'); }catch(e){}
             showFloatingText(`AI 拿走 ${count} 個`, '#A855F7');
             const geometryPane = document.getElementById("geometry-pane"); 
-            geometryPane.classList.add("main-error"); // 借用錯誤特效作為 AI 攻擊特效
+            geometryPane.classList.add("main-error"); 
             setTimeout(() => geometryPane.classList.remove("main-error"), 300);
         }
 
@@ -461,7 +457,6 @@
             currentTurn = isPlayer ? "ai" : "player";
             updateUI();
             if (currentTurn === "ai") {
-                // AI 假裝思考 1~2 秒
                 setTimeout(aiLogic, Math.random() * 1000 + 800);
             }
         }
@@ -469,24 +464,20 @@
 
     function playerTake(count) {
         if(gameState !== "PLAYING" || currentTurn !== "player") return;
-        createRipple(canvas.width/2, canvas.height/2); // Center screen ripple
+        createRipple(canvas.width/2, canvas.height/2); 
         executeTake(count, true);
     }
 
     function aiLogic() {
         if(gameState !== "PLAYING") return;
         
-        // 高級巴什博弈完美 AI
-        // 目標：讓剩餘數量保持為 (M+1) 的倍數
         let magicNumber = maxTake + 1;
         let targetTake = remainingItems % magicNumber;
         
         let takeCount = 1;
         if (targetTake === 0) {
-            // 必敗態，隨機拿取 1 ~ M 來混淆玩家，或拿 1 個拖延
             takeCount = Math.floor(Math.random() * maxTake) + 1;
         } else {
-            // 必勝態，拿下餘數
             takeCount = targetTake;
         }
         
