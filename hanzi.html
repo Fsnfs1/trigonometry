@@ -3009,6 +3009,7 @@
       const correct = button.textContent === step.answer;
       state.attempts += 1;
       if (correct) {
+        triggerEffect(button, true);
         state.shapeAnswered = true;
         state.score += 1;
         document.querySelectorAll("#shapeChoices .choice").forEach(choice => {
@@ -3037,26 +3038,6 @@
       }
       saveProgress();
       renderStats();
-    }
-
-    window._currentUtterance = null; // Prevent GC bug on Android
-    let zhVoice = null;
-    
-    // Fallback local TTS
-    function speakLocal(text, rate = 0.75) {
-      if (!("speechSynthesis" in window)) return;
-      speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "zh-CN";
-      utterance.rate = rate;
-      if (!zhVoice) {
-        const voices = speechSynthesis.getVoices();
-        zhVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase().includes("zh-cn")) || 
-                  voices.find(v => v.lang.toLowerCase().includes("zh"));
-      }
-      if (zhVoice) utterance.voice = zhVoice;
-      window._currentUtterance = utterance;
-      speechSynthesis.speak(utterance);
     }
 
     // Global audio element to bypass Android/iOS strict autoplay restrictions
@@ -3245,10 +3226,12 @@
       const correct = button.textContent === state.quiz.answer;
       state.attempts += 1;
       if (correct) {
+        triggerEffect(button, true);
         state.score += 1;
         state.learned.add(state.quiz.item.char);
         $("feedback").textContent = `答对了：${state.quiz.item.char}，${state.quiz.item.pinyin}`;
       } else {
+        triggerEffect(button, false);
         $("feedback").textContent = `再记一下：正确答案是 ${state.quiz.answer}`;
       }
       document.querySelectorAll("#choices .choice").forEach(choice => {
