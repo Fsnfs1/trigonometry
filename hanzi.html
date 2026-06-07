@@ -770,9 +770,22 @@
         grid-template-columns: 1fr;
       }
     }
-  </style>
+  
+    /* Particles */
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+</style>
 </head>
 <body>
+  <canvas id="particle-canvas"></canvas>
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
@@ -2727,6 +2740,105 @@
       $("progressFill").style.width = `${Math.round((state.learned.size / hanzi.length) * 100)}%`;
     }
 
+    
+    // --- AUDIO & PARTICLE SYSTEM ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playTone(freq, type, duration, vol=0.1) {
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playSuccessSound() {
+      playTone(523.25, 'sine', 0.1, 0.2); // C5
+      setTimeout(() => playTone(659.25, 'sine', 0.1, 0.2), 100); // E5
+      setTimeout(() => playTone(783.99, 'sine', 0.2, 0.2), 200); // G5
+    }
+
+    function playErrorSound() {
+      playTone(150, 'sawtooth', 0.15, 0.1);
+      setTimeout(() => playTone(100, 'sawtooth', 0.3, 0.1), 150);
+    }
+
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function createParticles(x, y, isSuccess) {
+      const colors = isSuccess ? ['#4ade80', '#22c55e', '#16a34a', '#fbbf24', '#f59e0b'] : ['#ef4444', '#dc2626', '#b91c1c', '#6b7280'];
+      const count = isSuccess ? 50 : 20;
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * (isSuccess ? 15 : 8),
+          vy: (Math.random() - 0.5) * (isSuccess ? 15 : 8) - (isSuccess ? 5 : 2),
+          size: Math.random() * 6 + 3,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          life: 1,
+          decay: Math.random() * 0.02 + 0.01,
+          gravity: isSuccess ? 0.3 : 0.5
+        });
+      }
+    }
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.vy += p.gravity;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.decay;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        } else {
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+    
+    function triggerEffect(target, isSuccess) {
+       const rect = target.getBoundingClientRect();
+       const x = rect.left + rect.width / 2;
+       const y = rect.top + rect.height / 2;
+       if (isSuccess) {
+         playSuccessSound();
+         createParticles(x, y, true);
+       } else {
+         playErrorSound();
+         createParticles(x, y, false);
+         target.style.transform = "translateX(-10px)";
+         setTimeout(() => target.style.transform = "translateX(10px)", 50);
+         setTimeout(() => target.style.transform = "translateX(-10px)", 100);
+         setTimeout(() => target.style.transform = "translateX(0)", 150);
+       }
+    }
+    // --- END SYSTEM ---
+
     function renderCard() {
       const item = itemAtIndex();
       const hasMatches = state.filtered.length > 0;
@@ -2948,40 +3060,70 @@
     }
 
     // Global audio element to bypass Android/iOS strict autoplay restrictions
+    
+    // --- 平台探测与统一发音引擎 ---
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    window._currentUtterance = null;
+    let zhVoice = null;
     const globalAudio = new Audio();
 
-    // Main robust TTS function using Baidu Fanyi API (supports full sentences natively)
-    function playAudioText(text, rate = 0.75) {
-        try {
-            // Use Baidu Fanyi TTS which accepts any string without 500 errors
-            globalAudio.src = `https://fanyi.baidu.com/gettts?lan=zh&text=${encodeURIComponent(text)}&spd=5&source=web`;
-            globalAudio.onended = null;
-            globalAudio.onerror = () => {
-                console.warn("Network audio failed, falling back to local TTS for:", text);
-                speakLocal(text, rate);
-            };
-            globalAudio.play().catch(e => {
-                console.warn("Network audio rejected, falling back to local TTS:", e);
-                speakLocal(text, rate);
-            });
-        } catch (e) {
-            speakLocal(text, rate);
+    function speakLocal(text, rate) {
+      if (!("speechSynthesis" in window)) return;
+      speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "zh-CN";
+      utterance.rate = rate;
+      if (!zhVoice) {
+        const voices = speechSynthesis.getVoices();
+        zhVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase().includes("zh-cn")) || 
+                  voices.find(v => v.lang.toLowerCase().includes("zh"));
+      }
+      if (zhVoice) utterance.voice = zhVoice;
+      window._currentUtterance = utterance;
+      speechSynthesis.speak(utterance);
+    }
+
+    function playAudioText(text) {
+        if (isIOS) {
+            // iOS 强制使用本地引擎同步发音，规避异步 Audio 拦截和缓存 Bug
+            speakLocal(text, 0.5); 
+        } else {
+            // 安卓和 PC 使用百度 Fanyi 连读
+            try {
+                globalAudio.src = `https://fanyi.baidu.com/gettts?lan=zh&text=${encodeURIComponent(text)}&spd=5&source=web`;
+                globalAudio.onended = null;
+                globalAudio.onerror = () => speakLocal(text, 0.75);
+                globalAudio.play().catch(e => speakLocal(text, 0.75));
+            } catch (e) {
+                speakLocal(text, 0.75);
+            }
         }
     }
 
     function speak(item = itemAtIndex()) {
-      playAudioText(item.char, 0.75);
+      playAudioText(item.char);
     }
 
     function speakPinyin(item = itemAtIndex()) {
-      playAudioText(item.char, 0.72);
+      // 拼音因为某些引擎不支持，传入实际汉字读音最准确
+      if (isIOS) {
+          const plain = item.pinyin.normalize("NFD").replace(/[̀-ͯ]/g, "");
+          speakLocal(plain, 0.45);
+      } else {
+          playAudioText(item.char);
+      }
     }
 
     function speakPhrase(item = itemAtIndex()) {
-      // Baidu can read the whole phrase directly in one audio fetch!
       const phrase = item.words && item.words.length > 0 ? `${item.words[0]}的${item.char}` : item.char;
-      playAudioText(phrase, 0.75);
+      if (isIOS) {
+          speakLocal(phrase, 0.5);
+      } else {
+          playAudioText(phrase);
+      }
     }
+    // --- 统一引擎结束 ---
 
     function setView(view) {
       state.view = view;
