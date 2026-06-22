@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一般式過三關遊戲</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --text-light: #f8fafc;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; display: flex; justify-content: center; align-items: center;
+            font-family: 'Inter', sans-serif; overflow: hidden;
+        }
+
+        #game-container {
+            width: 100%; height: 100%;
+            max-width: min(1280px, calc(100vh * 16 / 9));
+            max-height: min(720px, calc(100vw * 9 / 16));
+            position: relative; background-color: #050b14;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.3);
+            border-radius: 20px; overflow: hidden;
+        }
+
+        #bg-canvas, #bg-overlay, #tsparticles, #ui-layer { position: absolute; inset: 0; }
+        #bg-canvas { z-index: 0; pointer-events: none; }
+        #bg-overlay { background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.3) 100%); z-index: 1; pointer-events: none; }
+        #tsparticles { z-index: 2; pointer-events: auto; }
+
+        #ui-layer {
+            z-index: 10; display: flex; flex-direction: column;
+            color: var(--text-light); pointer-events: none;
+        }
+
+        #top-area {
+            flex: 7.5; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        #bottom-area {
+            flex: 2.5; position: relative; border-top: 2px solid rgba(255,255,255,0.2);
+            background: rgba(90, 90, 90, 0.6); backdrop-filter: blur(5px);
+            pointer-events: auto; overflow: hidden;
+        }
+
+        #scratchpad { position: absolute; inset: 0; cursor: crosshair; }
+        #clear-btn { position: absolute; right: 20px; top: 20px; z-index: 10; padding: 0.5rem 1.5rem; font-size: 1rem; }
+
+        .screen {
+            display: none; flex-direction: column; align-items: center; justify-content: flex-start;
+            width: 100%; height: 100%; position: absolute; inset: 0;
+            overflow-y: auto; padding: 1rem 0; box-sizing: border-box;
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .screen::-webkit-scrollbar { display: none; }
+        .screen.active { display: flex; }
+        
+        .screen-content {
+            margin: auto; display: flex; flex-direction: column; align-items: center; width: 100%; padding: 1rem 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-pop { animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; filter: blur(10px); }
+            60% { transform: scale(1.2); opacity: 1; filter: blur(0); }
+            100% { transform: scale(1); opacity: 1; filter: blur(0); }
+        }
+        
+        .shockwave {
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+            background: transparent; border: 5px solid rgba(255,255,255,0.8);
+            border-radius: 50%; transform: translate(-50%, -50%);
+            animation: shockwaveAnim 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+            pointer-events: none; z-index: 50;
+            box-shadow: 0 0 50px rgba(255,255,255,0.8), inset 0 0 50px rgba(255,255,255,0.8);
+        }
+        @keyframes shockwaveAnim {
+            0% { width: 10px; height: 10px; opacity: 1; border-width: 50px; }
+            100% { width: 2500px; height: 2500px; opacity: 0; border-width: 0px; }
+        }
+
+        .flash-overlay {
+            position: absolute; inset: 0; background: white; z-index: 45;
+            pointer-events: none; animation: flashAnim 0.8s ease-out forwards;
+        }
+        @keyframes flashAnim { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+        h1 { font-family: 'Outfit', sans-serif; font-size: clamp(2.5rem, 6vh, 4rem); margin-bottom: 1rem; text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.5); line-height: 1.1; }
+        h2 { font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin-bottom: 0.5rem; text-shadow: 0 5px 10px rgba(0,0,0,0.5); }
+        .highlight { color: transparent; background: linear-gradient(90deg, #38bdf8, #818cf8, #e879f9); -webkit-background-clip: text; }
+        
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.2); color: white;
+            padding: 1rem 3rem; font-size: 1.5rem; font-weight: 800; border-radius: 50px;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255,255,255,0.2);
+            font-family: 'Inter', sans-serif; text-transform: uppercase; pointer-events: auto;
+        }
+        .glass-btn:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-4px) scale(1.02); box-shadow: 0 15px 25px rgba(0, 0, 0, 0.2), 0 0 20px rgba(255,255,255,0.2); }
+        .glass-btn:active { transform: translateY(0) scale(0.98); }
+        .glass-btn.success { background: rgba(34, 197, 94, 0.2); border-color: rgba(34, 197, 94, 0.5); }
+        .glass-btn.success:hover { background: rgba(34, 197, 94, 0.4); box-shadow: 0 15px 25px rgba(0, 0, 0, 0.2), 0 0 30px rgba(34, 197, 94, 0.5); }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px;
+            padding: 2rem 3rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            margin-bottom: 2rem; pointer-events: auto; text-align: center; max-width: 90%;
+        }
+
+        #equation-display { font-size: clamp(2rem, 3vw, 3rem); color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.8); min-height: 80px; display: flex; align-items: center; justify-content: center; }
+
+        .hud { position: absolute; top: 1.5rem; left: 2rem; right: 2rem; display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 20; pointer-events: none; }
+        .hud-badge { background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(10px); padding: 0.6rem 1.5rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); pointer-events: auto; }
+
+        /* Level 1 specific */
+        .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; width: 100%; max-width: 600px; pointer-events: auto; }
+        .choice-btn {
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white; padding: 1rem; font-size: 1.8rem; border-radius: 15px; cursor: pointer; transition: all 0.2s;
+        }
+        .choice-btn:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.05); }
+
+        /* Drag and Drop specific */
+        .dnd-container { display: flex; flex-direction: column; align-items: center; gap: 2rem; pointer-events: auto; width: 100%; }
+        .target-zones { display: flex; gap: 2rem; justify-content: center; align-items: flex-end; }
+        .target-group { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+        .target-label { font-size: 1.2rem; opacity: 0.8; font-weight: 600; }
+        .drop-zone {
+            width: 120px; height: 70px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 12px;
+            display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); transition: all 0.3s;
+        }
+        .drop-zone.drag-over { background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; transform: scale(1.05); }
+        .drop-zone.filled { border: 2px solid rgba(255,255,255,0.8); background: rgba(255,255,255,0.1); }
+        
+        .options-pool {
+            display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 1.5rem; min-height: 80px; width: 80%; max-width: 800px;
+        }
+        .draggable-item {
+            background: rgba(99, 102, 241, 0.4); border: 1px solid rgba(99, 102, 241, 0.8); border-radius: 8px;
+            padding: 0.5rem 1rem; cursor: grab; font-size: 1.6rem; user-select: none; transition: transform 0.1s;
+        }
+        .draggable-item:active { cursor: grabbing; transform: scale(0.9); }
+        .draggable-item.dragging { opacity: 0.5; }
+
+        .submit-container { margin-top: 1rem; pointer-events: auto; }
+
+        .rules-list { text-align: left; font-size: 1.2rem; line-height: 1.6; margin-bottom: 2rem; background: rgba(0,0,0,0.3); padding: 1.5rem 2.5rem; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); pointer-events: auto; }
+        .danger-text { color: #fca5a5; text-shadow: 0 0 30px rgba(239,68,68,0.8); }
+        .success-text { color: #86efac; text-shadow: 0 0 30px rgba(34,197,94,0.8); }
+
+        /* Fullscreen styles */
+        #game-container:fullscreen { max-width: none; max-height: none; width: 100vw; height: 100vh; border-radius: 0; }
+        #game-container:-webkit-full-screen { max-width: none; max-height: none; width: 100vw; height: 100vh; border-radius: 0; }
+        #game-container.is-fullscreen { max-width: none; max-height: none; width: 100vw; height: 100vh; border-radius: 0; }
+        
+        .fs-btn {
+            position: absolute; top: 20px; left: 20px; z-index: 999;
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2); color: white;
+            padding: 0.8rem; border-radius: 12px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: auto; transition: all 0.2s;
+        }
+        .fs-btn:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="bg-canvas"></canvas>
+        <div id="tsparticles"></div>
+        <div id="bg-overlay"></div>
+        
+        <div id="ui-layer">
+            <button id="fullscreen-btn" class="fs-btn" title="切換全螢幕" onclick="toggleFullscreen()">
+                <svg id="fs-icon-enter" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+                <svg id="fs-icon-exit" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+                </svg>
+            </button>
+            <div id="top-area">
+                <!-- Screens -->
+                <div id="start-screen" class="screen active">
+                  <div class="screen-content">
+                    <h1>一般式<br><span class="highlight">過三關挑戰</span></h1>
+                    <div class="rules-list">
+                        🔥 <b>遊戲規則</b><br>
+                        1. 遊戲共有三關，每一關都與一元二次方程式的<b>一般式</b> (<span id="rule-eq"></span>) 有關。<br>
+                        2. 透過選擇或拖曳選項來作答。<br>
+                        3. <b>畫面下方設有草稿區</b>，可以用滑鼠或手指直接寫字化簡式子！<br>
+                        4. 只要答錯一次，遊戲就會立刻結束！
+                    </div>
+                    <button id="start-btn" class="glass-btn">開始挑戰</button>
+                  </div>
+                </div>
+
+                <!-- Level 1 Screen -->
+                <div id="level1-screen" class="screen">
+                    <div class="hud"><div class="hud-badge">第一關：基本辨識</div></div>
+                  <div class="screen-content">
+                    <div class="glass-panel">
+                        <h2 id="l1-question-text" style="font-size: 1.5rem; margin-bottom: 1rem;"></h2>
+                        <div id="l1-equation"></div>
+                    </div>
+                    <div class="choices-grid" id="l1-choices"></div>
+                  </div>
+                </div>
+
+                <!-- Level 2 & 3 Screen -->
+                <div id="dnd-screen" class="screen">
+                    <div class="hud"><div class="hud-badge" id="dnd-level-badge">第二關</div></div>
+                  <div class="screen-content">
+                    <div class="glass-panel" style="margin-bottom: 1rem; padding: 1.5rem 3rem;">
+                        <div id="dnd-equation"></div>
+                    </div>
+                    
+                    <div class="dnd-container">
+                        <div class="target-zones">
+                            <div class="target-group">
+                                <span class="target-label">二次項係數</span>
+                                <div class="drop-zone" data-target="a"></div>
+                            </div>
+                            
+                            <div class="target-group">
+                                <span class="target-label">一次項係數</span>
+                                <div class="drop-zone" data-target="b"></div>
+                            </div>
+                            
+                            <div class="target-group">
+                                <span class="target-label">常數項</span>
+                                <div class="drop-zone" data-target="c"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="options-pool" class="options-pool"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Level Clear Screen -->
+                <div id="level-clear-screen" class="screen">
+                  <div class="screen-content" style="justify-content: center; height: 100%;">
+                    <h1 class="highlight animate-pop" style="font-size: clamp(4rem, 10vw, 8rem); text-shadow: 0 0 50px rgba(255,255,255,0.5);">正確！</h1>
+                    <p style="font-size: 2rem; color: #86efac; animation: fadeIn 1s 0.5s forwards; opacity: 0; text-shadow: 0 0 20px rgba(34,197,94,0.8);">準備進入下一關...</p>
+                  </div>
+                </div>
+
+                <!-- Game Over Screen -->
+                <div id="game-over-screen" class="screen">
+                  <button id="restart-btn" class="glass-btn" style="position: absolute; top: 20px; right: 20px; z-index: 20; padding: 0.8rem 1.5rem; font-size: 1.2rem;">重新挑戰</button>
+                  <div class="screen-content">
+                    <h1 class="danger-text">GAME OVER</h1>
+                    <p style="font-size: 1.5rem; margin-bottom: 1rem;">判斷錯誤！真遺憾，請重新來過。</p>
+                    <div id="game-over-context" style="background: rgba(239, 68, 68, 0.2); padding: 1rem 2rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.5); margin-bottom: 1rem; display: none;">
+                        <span style="font-size: 1.2rem; opacity: 0.8; display: block; margin-bottom: 0.5rem;">你答錯的題目任務是：</span>
+                        <span id="game-over-question" style="font-size: 1.5rem; font-weight: bold; color: #fff;"></span>
+                    </div>
+                    <div id="game-over-equation" style="margin-bottom: 2rem; min-height: 50px; font-size: clamp(2rem, 4vw, 3rem);"></div>
+                  </div>
+                </div>
+
+                <!-- Victory Screen -->
+                <div id="victory-screen" class="screen">
+                  <div class="screen-content">
+                    <h1 class="success-text">挑戰成功！</h1>
+                    <p style="font-size: 1.5rem; margin-bottom: 2rem;">太厲害了！你已經完全掌握了一般式的結構！</p>
+                    <button id="play-again-btn" class="glass-btn">再玩一次</button>
+                  </div>
+                </div>
+            </div>
+
+            <div id="bottom-area">
+                <button id="clear-btn" class="glass-btn">清除草稿</button>
+                <canvas id="scratchpad"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2/tsparticles.bundle.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // 粒子引擎配置
+        // ==========================================
+        const defaultParticles = {
+            background: { color: { value: "transparent" } },
+            fpsLimit: 60,
+            interactivity: { events: { onHover: { enable: true, mode: "repulse" } }, modes: { repulse: { distance: 100, duration: 0.4 } } },
+            particles: {
+                color: { value: "#ffffff" },
+                links: { color: "#ffffff", distance: 150, enable: true, opacity: 0.2, width: 1 },
+                move: { enable: true, random: true, speed: 0.8 },
+                number: { density: { enable: true, area: 800 }, value: 60 },
+                opacity: { value: 0.3 }, shape: { type: "circle" }, size: { value: { min: 1, max: 2.5 } }
+            }
+        };
+
+        const gameOverParticles = {
+            background: { color: { value: "transparent" } },
+            fpsLimit: 60,
+            particles: {
+                color: { value: "#ef4444" }, move: { direction: "bottom", enable: true, outModes: "out", speed: 8 },
+                number: { value: 150 }, opacity: { value: 0.8 }, shape: { type: "triangle" }, size: { value: { min: 2, max: 6 } }, rotate: { path: true }
+            }
+        };
+
+        const victoryParticles = {
+            background: { color: { value: "transparent" } },
+            fpsLimit: 60,
+            particles: {
+                color: { value: ["#38bdf8", "#818cf8", "#e879f9", "#22c55e", "#fbbf24", "#ff0000"] },
+                move: { direction: "none", enable: true, outModes: "out", speed: { min: 5, max: 15 } },
+                number: { density: { enable: true, area: 800 }, value: 300 },
+                opacity: { value: 0.9, animation: { enable: true, speed: 1, minimumValue: 0.1 } }, 
+                shape: { type: ["circle", "square", "triangle", "polygon"] },
+                size: { value: { min: 5, max: 15 }, animation: { enable: true, speed: 5, minimumValue: 2 } }, 
+                rotate: { animation: { enable: true, speed: 5 } }
+            }
+        };
+
+        const warpParticles = {
+            background: { color: { value: "transparent" } },
+            fpsLimit: 60,
+            particles: {
+                color: { value: ["#38bdf8", "#818cf8", "#e879f9", "#ffffff", "#22c55e", "#fbbf24"] },
+                move: { enable: true, speed: { min: 20, max: 60 }, direction: "none", outModes: "out", straight: true },
+                number: { density: { enable: true, area: 800 }, value: 400 },
+                opacity: { value: { min: 0.1, max: 1 } }, shape: { type: "circle" },
+                size: { value: { min: 2, max: 8 } }, links: { enable: false }
+            }
+        };
+
+        function playLevelClearAnimation(callback) {
+            const flash = document.createElement('div');
+            flash.className = 'flash-overlay';
+            document.getElementById('game-container').appendChild(flash);
+            
+            const shockwave = document.createElement('div');
+            shockwave.className = 'shockwave';
+            document.getElementById('game-container').appendChild(shockwave);
+            
+            setTimeout(() => { flash.remove(); shockwave.remove(); }, 1000);
+
+            loadParticles(warpParticles);
+            showScreen('level-clear-screen');
+            
+            const clearTitle = document.querySelector('#level-clear-screen h1');
+            clearTitle.classList.remove('animate-pop');
+            void clearTitle.offsetWidth;
+            clearTitle.classList.add('animate-pop');
+
+            setTimeout(() => {
+                callback();
+                loadParticles(defaultParticles);
+            }, 2500);
+        }
+
+        function loadParticles(config) {
+            try {
+                if (typeof tsParticles !== 'undefined' && tsParticles.load) {
+                    tsParticles.load("tsparticles", config).catch(e => console.error("Particle load error:", e));
+                }
+            } catch(e) { console.error("loadParticles error", e); }
+        }
+
+        // ==========================================
+        // 草稿區 (Scratchpad)
+        // ==========================================
+        const canvas = document.getElementById('scratchpad');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#e2e8f0'; // text-light color
+        }
+        window.addEventListener('resize', resizeCanvas);
+        
+        function clearScratchpad() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        document.getElementById('clear-btn').addEventListener('click', clearScratchpad);
+
+        // 滑鼠事件
+        canvas.addEventListener('mousedown', e => { isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
+        canvas.addEventListener('mousemove', e => { if (isDrawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } });
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
+        
+        // 觸控事件
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            isDrawing = true;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            ctx.beginPath();
+            ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+        }, {passive: false});
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (isDrawing) {
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                ctx.stroke();
+            }
+        }, {passive: false});
+        canvas.addEventListener('touchend', () => isDrawing = false);
+
+        // ==========================================
+        // 數學工具
+        // ==========================================
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function randomNonZeroInt(min, max) {
+            let val = 0;
+            while (val === 0) val = randomInt(min, max);
+            return val;
+        }
+
+        function renderLatex(latex, element) {
+            katex.render(latex, element, { throwOnError: false, displayMode: true });
+        }
+        function renderInline(latex, element) {
+            katex.render(latex, element, { throwOnError: false, displayMode: false });
+        }
+        
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // ==========================================
+        // 遊戲邏輯與拖曳
+        // ==========================================
+        let currentLevel = 0;
+        let currentAns = null; // 用於存放正確解答 (Level 1)
+        let currentEqLatex = ""; // 存放當前題目的 Latex 字串
+        let currentQuestionText = ""; // 存放當前問題描述
+        let validAnswers = []; // 存放第二、三關的正確組合
+        
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function handleWrong() {
+            const activeScreenContent = document.querySelector('.screen.active .screen-content');
+            let snapshot = null;
+            if (activeScreenContent) {
+                snapshot = activeScreenContent.cloneNode(true);
+                // Remove IDs to avoid duplicates
+                snapshot.removeAttribute('id');
+                snapshot.querySelectorAll('*').forEach(el => el.removeAttribute('id'));
+            }
+
+            loadParticles(gameOverParticles);
+            showScreen('game-over-screen');
+            
+            // Hide the old text context since snapshot shows everything
+            document.getElementById('game-over-equation').style.display = "none";
+            document.getElementById('game-over-context').style.display = "none";
+            
+            let snapContainer = document.getElementById('game-over-snapshot');
+            if (!snapContainer) {
+                snapContainer = document.createElement('div');
+                snapContainer.id = 'game-over-snapshot';
+                snapContainer.style.cssText = "width: 100%; flex: 1; display: flex; justify-content: center; align-items: flex-start; opacity: 0; transition: opacity 0.5s; padding: 0; margin-top: 1rem; overflow: visible;";
+                document.querySelector('#game-over-screen').appendChild(snapContainer);
+            }
+            snapContainer.innerHTML = '';
+            snapContainer.style.opacity = '0';
+
+            if (snapshot) {
+                snapshot.style.transformOrigin = "top center";
+                snapshot.style.pointerEvents = "none";
+                snapshot.style.margin = "0"; // remove auto margin
+                snapContainer.appendChild(snapshot);
+                
+                const updateScale = () => {
+                    if (snapContainer.offsetWidth === 0) return;
+                    // Calculate available height based on screen
+                    const availableHeight = snapContainer.clientHeight || (window.innerHeight * 0.4);
+                    // Assume original content is around 400px high max, scale down to fit
+                    const contentHeight = snapshot.scrollHeight || 400;
+                    const scaleHeight = availableHeight / contentHeight;
+                    const scale = Math.min(0.8, scaleHeight);
+                    snapshot.style.transform = `scale(${scale})`;
+                    // Reduce height so it doesn't take up original space and overflow
+                    snapshot.style.height = `${contentHeight * scale}px`;
+                    snapshot.style.overflow = "hidden";
+                };
+                
+                setTimeout(updateScale, 10);
+                window.addEventListener('resize', updateScale);
+                
+                // Save listener to remove it later if needed, but it's safe to overwrite
+                snapContainer._updateScale = updateScale;
+            }
+
+            setTimeout(() => {
+                if (snapContainer) {
+                    snapContainer.style.opacity = "1";
+                    if (snapContainer._updateScale) snapContainer._updateScale();
+                }
+            }, 500);
+        }
+
+        function nextLevel() {
+            currentLevel++;
+            clearScratchpad();
+            
+            if (currentLevel === 1) initLevel1();
+            else if (currentLevel === 2) initLevel2();
+            else if (currentLevel === 3) initLevel3();
+            else {
+                const flash = document.createElement('div');
+                flash.className = 'flash-overlay';
+                document.getElementById('game-container').appendChild(flash);
+                
+                const shockwave = document.createElement('div');
+                shockwave.className = 'shockwave';
+                document.getElementById('game-container').appendChild(shockwave);
+                
+                setTimeout(() => { flash.remove(); shockwave.remove(); }, 1000);
+                
+                loadParticles(victoryParticles);
+                showScreen('victory-screen');
+            }
+        }
+
+        function startGame() {
+            currentLevel = 0;
+            loadParticles(defaultParticles);
+            nextLevel();
+        }
+
+        // --- Level 1 ---
+        function initLevel1() {
+            showScreen('level1-screen');
+            let m = randomNonZeroInt(-5, 5);
+            let p = randomNonZeroInt(-5, 5);
+            let mStr = Math.abs(m) === 1 ? (m < 0 ? "-" : "") : m;
+            const equationStr = `${mStr}x^2 - x ${p < 0 ? '+' : '-'} ${Math.abs(p)} = 0`;
+            currentEqLatex = equationStr;
+            renderLatex(equationStr, document.getElementById('l1-equation'));
+            
+            const questions = [
+                { q: "請問「二次項」是？", a: `${mStr}x^2`, opt: [`${mStr}x^2`, `${m}`, "-x", `${-p}`] },
+                { q: "請問「二次項係數」是？", a: `${m}`, opt: [`${m}`, `${mStr}x^2`, "-1", `${-p}`] },
+                { q: "請問「一次項」是？", a: "-x", opt: ["-x", "-1", `${mStr}x^2`, "x"] },
+                { q: "請問「一次項係數」是？", a: "-1", opt: ["-1", "-x", `${m}`, "1"] },
+                { q: "請問「常數項」是？", a: `${-p}`, opt: [`${-p}`, `${p}`, "-1", "0"] }
+            ];
+            
+            const qData = questions[Math.floor(Math.random() * questions.length)];
+            currentQuestionText = qData.q;
+            document.getElementById('l1-question-text').innerText = qData.q;
+            currentAns = qData.a;
+            
+            let optsSet = new Set();
+            optsSet.add(qData.a);
+            qData.opt.forEach(o => optsSet.add(o));
+            
+            const fallbacks = ["0", "1", "-1", "2", "-2", "x", "-x", "x^2", "-x^2", String(m), String(-p)];
+            let fIdx = 0;
+            while(optsSet.size < 4 && fIdx < fallbacks.length) {
+                optsSet.add(fallbacks[fIdx]);
+                fIdx++;
+            }
+            
+            const grid = document.getElementById('l1-choices');
+            grid.innerHTML = '';
+            
+            const shuffledOpts = shuffleArray(Array.from(optsSet).slice(0, 4));
+            shuffledOpts.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                renderInline(opt, btn);
+                btn.onclick = () => {
+                    if (opt === currentAns) {
+                        playLevelClearAnimation(() => nextLevel());
+                    } else {
+                        btn.style.backgroundColor = 'rgba(239, 68, 68, 0.6)';
+                        btn.style.borderColor = '#ef4444';
+                        btn.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.8)';
+                        handleWrong();
+                    }
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        // --- Drag and Drop Logic ---
+        let draggedElement = null;
+
+        function setupDragAndDrop(options) {
+            const pool = document.getElementById('options-pool');
+            pool.innerHTML = '';
+            
+            // 清除所有的 drop zones
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.innerHTML = '';
+                zone.classList.remove('filled');
+            });
+            
+            // 建立選項磚塊
+            shuffleArray([...options]).forEach(opt => {
+                const item = document.createElement('div');
+                item.className = 'draggable-item';
+                item.draggable = true;
+                item.dataset.val = opt;
+                renderInline(opt, item);
+                
+                item.addEventListener('dragstart', function(e) {
+                    draggedElement = item;
+                    setTimeout(() => item.classList.add('dragging'), 0);
+                });
+                item.addEventListener('dragend', function(e) {
+                    draggedElement = null;
+                    item.classList.remove('dragging');
+                });
+                // 點擊替代拖曳（方便操作）
+                item.addEventListener('click', function(e) {
+                    if (item.parentElement === pool) {
+                        // 嘗試放入第一個空的 zone
+                        const emptyZone = Array.from(document.querySelectorAll('.drop-zone')).find(z => z.children.length === 0);
+                        if (emptyZone) {
+                            emptyZone.appendChild(item);
+                            emptyZone.classList.add('filled');
+                            checkAutoSubmit();
+                        }
+                    } else {
+                        // 從 zone 退回 pool
+                        pool.appendChild(item);
+                        item.parentElement.classList.remove('filled');
+                    }
+                });
+                pool.appendChild(item);
+            });
+            
+            // 設定 Drop Zones
+            const zones = document.querySelectorAll('.drop-zone');
+            zones.forEach(zone => {
+                zone.ondragover = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+                zone.ondragleave = e => { zone.classList.remove('drag-over'); };
+                zone.ondrop = e => {
+                    e.preventDefault();
+                    zone.classList.remove('drag-over');
+                    if (draggedElement) {
+                        // 如果裡面已經有東西，退回到 pool
+                        if (zone.children.length > 0) {
+                            pool.appendChild(zone.children[0]);
+                        }
+                        zone.appendChild(draggedElement);
+                        zone.classList.add('filled');
+                        checkAutoSubmit();
+                    }
+                };
+                // 點擊清空
+                zone.addEventListener('click', function(e) {
+                    if (zone.children.length > 0 && e.target !== zone) {
+                        pool.appendChild(zone.children[0]);
+                        zone.classList.remove('filled');
+                    }
+                });
+            });
+            
+            // Pool 也可以接收 drop 回來
+            pool.ondragover = e => e.preventDefault();
+            pool.ondrop = e => {
+                e.preventDefault();
+                if (draggedElement) {
+                    pool.appendChild(draggedElement);
+                    // 同步移除來源 zone 的 filled 狀態
+                    document.querySelectorAll('.drop-zone').forEach(z => {
+                        if (z.children.length === 0) z.classList.remove('filled');
+                    });
+                }
+            };
+        }
+
+        // --- Level 2 ---
+        function initLevel2() {
+            showScreen('dnd-screen');
+            document.getElementById('dnd-level-badge').innerText = '第二關：化為一般式並找出係數';
+            currentQuestionText = '目標：化為一般式，並拖曳配對「二次項係數」、「一次項係數」與「常數項」';
+            
+            let m, n;
+            do {
+                m = randomNonZeroInt(-5, 5);
+                n = randomNonZeroInt(-5, 5);
+            } while (m === -n - 1 || m === 2 || n === -3);
+
+            let mStr = Math.abs(m) === 1 ? (m < 0 ? "-" : "") : m;
+            let nStr = Math.abs(n) === 1 ? (n < 0 ? "-" : "") : n;
+            currentEqLatex = `${mStr}x^2 ${n < 0 ? '+' : '-'} ${Math.abs(n) === 1 ? "" : Math.abs(n)}x + 2 = x`;
+            renderLatex(currentEqLatex, document.getElementById('dnd-equation'));
+            
+            const options = Array.from(new Set([m, n, 2, -2, -m, -n, -n-1, n+1].map(String)));
+            validAnswers = [
+                [String(m), String(-n-1), "2"],
+                [String(-m), String(n+1), "-2"]
+            ];
+            setupDragAndDrop(options);
+        }
+
+        function checkAutoSubmit() {
+            if (currentLevel < 2) return;
+            const a = document.querySelector('.drop-zone[data-target="a"]').children[0]?.dataset.val;
+            const b = document.querySelector('.drop-zone[data-target="b"]').children[0]?.dataset.val;
+            const c = document.querySelector('.drop-zone[data-target="c"]').children[0]?.dataset.val;
+            
+            if (a && b && c) {
+                // 自動驗證
+                let isCorrect = validAnswers.some(ans => ans[0] === a && ans[1] === b && ans[2] === c);
+                if (isCorrect) {
+                    setTimeout(() => {
+                        if (currentLevel === 3) {
+                            nextLevel();
+                        } else {
+                            playLevelClearAnimation(() => nextLevel());
+                        }
+                    }, 200);
+                } else {
+                    handleWrong();
+                }
+            }
+        }
+
+        // --- Level 3 ---
+        function initLevel3() {
+            showScreen('dnd-screen');
+            document.getElementById('dnd-level-badge').innerText = '第三關：最終挑戰';
+            currentQuestionText = '目標：化為一般式，並拖曳配對「二次項係數」、「一次項係數」與「常數項」';
+            
+            if (Math.random() < 0.5) {
+                let m, n;
+                do {
+                    m = randomNonZeroInt(-5, 5);
+                    n = randomNonZeroInt(-5, 5);
+                } while (m === -1 || m === n - 1);
+
+                let mStr = Math.abs(m) === 1 ? (m < 0 ? "-" : "") : m;
+                currentEqLatex = `${mStr}x ${n < 0 ? '-' : '+'} ${Math.abs(n)} - x^2 = 1`;
+                renderLatex(currentEqLatex, document.getElementById('dnd-equation'));
+                
+                const options = Array.from(new Set([m, n, n-1, 1-n, 1, -1, 2, -m, -n, -2].map(String)));
+                validAnswers = [
+                    ["-1", String(m), String(n-1)],
+                    ["1", String(-m), String(1-n)]
+                ];
+                setupDragAndDrop(options);
+            } else {
+                let k = randomInt(2, 7);
+                let p = randomInt(1, 5);
+                let q = randomInt(-5, 5);
+                let t = randomInt(-5, 5);
+                
+                let pStr = p === 1 ? "" : String(p);
+                let eqStr = `\\frac{${k}}{\\pi} - ${pStr}x^2`;
+                if (q > 0) eqStr += ` + ${q}`;
+                else if (q < 0) eqStr += ` - ${Math.abs(q)}`;
+                eqStr += ` = ${t}`;
+                
+                currentEqLatex = eqStr;
+                renderLatex(currentEqLatex, document.getElementById('dnd-equation'));
+                
+                let C = q - t;
+                let cStr1 = `\\frac{${k}}{\\pi}` + (C > 0 ? ` + ${C}` : (C < 0 ? ` - ${Math.abs(C)}` : ""));
+                let cStr2 = `-\\frac{${k}}{\\pi}` + (C > 0 ? ` - ${C}` : (C < 0 ? ` + ${Math.abs(C)}` : ""));
+                let kPiStr1 = `\\frac{${k}}{\\pi}`;
+                let kPiStr2 = `-\\frac{${k}}{\\pi}`;
+                
+                let rawOptions = [
+                    String(p), String(-p), "0", 
+                    cStr1, cStr2,
+                    String(k), String(-k), kPiStr1, kPiStr2,
+                    String(q), String(t)
+                ];
+                
+                const options = Array.from(new Set(rawOptions));
+                validAnswers = [
+                    [String(-p), "0", cStr1],
+                    [String(p), "0", cStr2]
+                ];
+                setupDragAndDrop(options);
+            }
+        }
+
+        // --- Init ---
+        function initApp() {
+            try {
+                renderInline("ax^2+bx+c=0", document.getElementById('rule-eq'));
+                document.getElementById("start-btn").addEventListener("click", startGame);
+                document.getElementById("restart-btn").addEventListener("click", startGame);
+                document.getElementById("play-again-btn").addEventListener("click", startGame);
+                
+                resizeCanvas();
+                loadParticles(defaultParticles);
+            } catch (e) {
+                console.error("Init error", e);
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
+
+        // ==========================================
+        // 全螢幕邏輯 (Fullscreen Logic)
+        // ==========================================
+        function toggleFullscreen() {
+            const container = document.getElementById('game-container');
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                if (container.requestFullscreen) container.requestFullscreen();
+                else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+        }
+
+        function updateFsIcon() {
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            document.getElementById('fs-icon-enter').style.display = isFs ? 'none' : 'block';
+            document.getElementById('fs-icon-exit').style.display = isFs ? 'block' : 'none';
+            const container = document.getElementById('game-container');
+            if (isFs) container.classList.add('is-fullscreen');
+            else container.classList.remove('is-fullscreen');
+            
+            setTimeout(() => {
+                resizeCanvas();
+                // If game-over-snapshot exists, update its scale
+                const snapContainer = document.getElementById('game-over-snapshot');
+                if (snapContainer && snapContainer._updateScale) snapContainer._updateScale();
+            }, 100);
+        }
+        
+        document.addEventListener('fullscreenchange', updateFsIcon);
+        document.addEventListener('webkitfullscreenchange', updateFsIcon);
+    </script>
+</body>
+</html>
